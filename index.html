@@ -219,13 +219,14 @@ details.paste .row{margin-top:8px}
       <div class="orow"><b>原唱音源</b>
         <label class="filebtn">导入本机音频<input type="file" id="audioFile" accept="audio/*" hidden></label>
         <button class="ghost" id="linkToggle">🔗 链接听歌软件</button>
+        <button class="ghost" id="ytSetupBtn">⚙ YouTube 自动搜歌（填密钥）</button>
         <button class="ghost" id="spNow" hidden>🎧 手机在放什么</button>
         <span id="origName">还没有音源。导入你自己的音频文件（整首可用）、链接听歌软件里的这首歌，或在搜索结果里点 Deezer「试听」拿 30 秒片段。</span>
       </div>
       <div class="orow linkrow" id="linkRow" hidden>
         <input id="linkIn" placeholder="粘贴歌曲链接：YouTube、Spotify、网易云音乐，或 mp3 直链" spellcheck="false">
         <button id="linkGo">接入</button>
-        <span class="lhint">在听歌软件里打开这首歌 → 分享 → 复制链接，粘贴到上面。到这里找这首歌：<a id="lkSp" target="_blank" rel="noopener">Spotify</a> · <a id="lkNe" target="_blank" rel="noopener">网易云音乐</a> · <a id="lkYt" target="_blank" rel="noopener">YouTube</a>。YouTube 链接整首可用、可定位、可慢放（本页需放到网上）。Spotify 未登录只有 30 秒试听，在同一浏览器登录 Premium 账号后可播完整歌曲（免费账号多数仍是 30 秒）；网易云只有非 VIP 歌曲、且在国内网络下可用。整首可用、最稳的还是「导入本机音频」。 <button class="ghost" id="ytSetupBtn">YouTube：填免费密钥后自动搜歌</button> <button class="ghost" id="spConnect">Spotify Premium 用户：登录账号自动匹配</button></span>
+        <span class="lhint">在听歌软件里打开这首歌 → 分享 → 复制链接，粘贴到上面。到这里找这首歌：<a id="lkSp" target="_blank" rel="noopener">Spotify</a> · <a id="lkNe" target="_blank" rel="noopener">网易云音乐</a> · <a id="lkYt" target="_blank" rel="noopener">YouTube</a>。YouTube 链接整首可用、可定位、可慢放（本页需放到网上）。Spotify 未登录只有 30 秒试听，在同一浏览器登录 Premium 账号后可播完整歌曲（免费账号多数仍是 30 秒）；网易云只有非 VIP 歌曲、且在国内网络下可用。整首可用、最稳的还是「导入本机音频」。 <button class="ghost" id="spConnect">Spotify Premium 用户：登录账号自动匹配</button></span>
       </div>
       <div class="spbox" id="ytSetup" hidden>
         <div class="r" id="ytStatus"></div>
