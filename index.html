@@ -2,12 +2,12 @@
 <html lang="zh-CN">
 <head>
 <meta charset="utf-8">
+<title>唱歌学外语</title>
+<meta name="claude:viewport-fit-sides" content="cover">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0}img{max-width:100%}[hidden]{display:none!important}</style>
 </head>
 <body>
-<title>唱歌学外语</title>
-<meta name="claude:viewport-fit-sides" content="cover">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,700&family=Noto+Sans+SC:wght@400;500;700&family=JetBrains+Mono:wght@400;600&display=swap">
 <style>
 /* Layout: a songbook spread. Lyrics are the left page (large, line by line); the study panel is the right-hand margin notes. A search strip sits above both. */
@@ -97,7 +97,6 @@ details.paste .row{margin-top:8px}
 
 .main{display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:18px;margin-top:18px;align-items:start}
 @media (max-width:860px){.main{grid-template-columns:1fr}.panel{position:static!important;max-height:none!important;overflow:visible!important}}
-}
 .lyrics .card.inline{margin:2px 8px 12px;padding:12px 14px;border-color:var(--accent)}
 .lyhint{margin:0 0 6px;font-size:12px;color:var(--muted)}
 .calib summary{cursor:pointer;font-size:12px;color:var(--muted)}
@@ -628,7 +627,7 @@ async function search(){
     if(qa){const one=await lrc(`https://lrclib.net/api/get?track_name=${encodeURIComponent(q)}&artist_name=${encodeURIComponent(qa)}`).catch(e=>{if(e instanceof TypeError)throw e;return null;});if(one)list.push(one);}
     try{list=list.concat(await lrc("https://lrclib.net/api/search?q="+encodeURIComponent(q))||[]);}
     catch(e){if(e instanceof TypeError)throw e;err=e;
-      const short=q.split(/s+/).slice(0,3).join(" ");
+      const short=q.split(/\s+/).slice(0,3).join(" ");
       if(short!==q){try{list=list.concat(await lrc("https://lrclib.net/api/search?q="+encodeURIComponent(short))||[]);err=null;}catch(e2){if(e2 instanceof TypeError)throw e2;}}}
     if(!list.length&&err)throw err;
   }catch(e){
