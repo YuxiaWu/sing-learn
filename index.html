@@ -737,6 +737,9 @@ async function resolveTitle(zh,artist){
           for(const v of vars){let i=-1,n=0;while((i=txt.indexOf(v,i+1))>=0&&n++<6){scriptRuns(txt.slice(Math.max(0,i-80),i+220)).forEach(x=>add(x,"维基百科"));}}}catch(e){}
       }}catch(e){}
   }catch(e){}
+  // YouTube 搜索结果的标题里通常带原文歌名（需要密钥；不依赖 Deezer / 维基百科）
+  const ytRows=[];
+  if(settings.ytKey){try{const items=await ytSearchRaw(zh+" "+(artistEn||artist||""));items.forEach(it=>{const cs=ytTitleCands(it.title).filter(x=>x!==zh);cs.slice(0,1).forEach(x=>add(x,"YouTube"));ytRows.push({id:it.id,title:it.title,channel:it.channel,cand:cs[0]||""});});}catch(e){}}
   const list=[...cands.keys()].slice(0,8);
   // verify with Deezer (works from a local file; blocked inside claude.ai)
   const dz=new Map();
@@ -751,7 +754,14 @@ async function resolveTitle(zh,artist){
       row.querySelector(".pv").onclick=()=>{setOrig(t.preview,"Deezer 试听（30 秒）："+title,"preview");oa.play().catch(()=>toast("无法播放试听"));};
       row.querySelector(".go").onclick=()=>{$("#q").value=title;$("#qa").value=t.artist.name;if(t.preview)setOrig(t.preview,"Deezer 试听（30 秒）："+title,"preview");search();};
       box.appendChild(row);});}
-  if(list.length){const h=document.createElement("p");h.className="hint";h.textContent=dzList.length?"其他可能的原文写法：":"可能的原文歌名（点一个去搜）：";box.appendChild(h);
+  if(ytRows.length){const h=document.createElement("p");h.className="hint";h.textContent="YouTube 上找到这些视频，标题里一般带原文歌名。点「搜歌词」用它去歌词库，载入后这个视频会自动接入当原唱：";box.appendChild(h);
+    ytRows.slice(0,5).forEach(r=>{const row=document.createElement("div");row.className="dz";
+      row.innerHTML='<span class="t">'+esc(r.cand||"（标题里没认出原文歌名）")+'</span>'+(r.cand?'<button class="primary go">搜歌词</button>':'')+'<button class="use">当原唱</button><span class="h">'+esc(r.title)+' · '+esc(r.channel)+'</span>';
+      const pend=()=>{ytPending={id:r.id,title:r.title,at:Date.now()};};
+      const go=row.querySelector(".go");if(go)go.onclick=()=>{pend();$("#q").value=r.cand;if(artistEn)$("#qa").value=artistEn;search();};
+      row.querySelector(".use").onclick=()=>{pend();toast("好：载入歌词（搜到或粘贴）后会自动接入这个视频");$("#pasteBox").open=true;};
+      box.appendChild(row);});}
+  if(list.length){const h=document.createElement("p");h.className="hint";h.textContent=(dzList.length||ytRows.length)?"其他可能的原文写法：":"可能的原文歌名（点一个去搜）：";box.appendChild(h);
     const w=document.createElement("div");w.className="cands";list.forEach(c=>{const b=document.createElement("button");b.textContent=c+"  ·  "+cands.get(c);b.title=cands.get(c);b.onclick=()=>{$("#q").value=c;if(artistEn)$("#qa").value=artistEn;search();};w.appendChild(b);});box.appendChild(w);}
   if(!list.length&&!dzList.length){box.innerHTML='<p class="hint err">没查到这个中文名对应的原文歌名。请直接输入原文或罗马音歌名（例如 너의 의미 / Neoui Uimi），或者把歌词粘贴进来。</p>';$("#pasteBox").open=true;}
 }
@@ -891,7 +901,7 @@ $("#linkToggle").onclick=()=>{const r=$("#linkRow");r.hidden=!r.hidden;if(!r.hid
 $("#linkGo").onclick=connectLink;$("#linkIn").addEventListener("keydown",e=>{if(e.key==="Enter")connectLink();});
 
 // ---------- YouTube：嵌入播放器（整首、可定位、可慢放），粘贴链接或用免费密钥自动搜歌 ----------
-let ytPlaySeq=0,ytApiP=null,ytP=null,ytReadyP=null,ytGrace=0,ytWant=null,ytWantAt=0,ytBad=false;
+let ytPending=null,ytPlaySeq=0,ytApiP=null,ytP=null,ytReadyP=null,ytGrace=0,ytWant=null,ytWantAt=0,ytBad=false;
 function loadYtApi(){if(ytApiP)return ytApiP;ytApiP=new Promise((res,rej)=>{if(window.YT&&window.YT.Player)return res(window.YT);window.onYouTubeIframeAPIReady=()=>res(window.YT);const sc=document.createElement("script");sc.src="https://www.youtube.com/iframe_api";sc.onerror=()=>{ytApiP=null;rej(new Error("load"));};document.head.appendChild(sc);setTimeout(()=>{if(!(window.YT&&window.YT.Player)){ytApiP=null;rej(new Error("timeout"));}},20000);});return ytApiP;}
 function ytErrMsg(code){return code===153?"YouTube 拒绝了本地文件的嵌入（没有 Referer）：把本页放到网上后才能用，或改用导入本机音频。":(code===101||code===150)?"这个视频不允许在别的网页里播放，换一个（比如官方 Audio / Lyrics 版本）。":code===100?"视频不存在或已删除。":"YouTube 播放器错误 "+code;}
 async function ytLoad(id){const Y=await loadYtApi();ytWant=null;ytBad=false;
@@ -910,17 +920,24 @@ const ytPlayer={name:"youtube",get t(){try{return ytP?ytP.getCurrentTime()||0:0;
   play(){if(!ytP)return Promise.reject(new Error("no"));if(ytBad)return Promise.reject(new Error("bad"));ytGrace=performance.now()+3000;ytP.playVideo();const my=++ytPlaySeq;setTimeout(()=>{if(my!==ytPlaySeq||origStopAt==null||P!==ytPlayer)return;let st=-9;try{st=ytP.getPlayerState();}catch(e){}if(st!==1&&st!==3){endSeg();document.querySelectorAll(".line.cur").forEach(x=>x.classList.remove("cur"));toast("YouTube 没有开始播放：先在播放器上点一下播放，或换一个视频。");}},4000);return Promise.resolve();},
   pause(){try{if(ytP)ytP.pauseVideo();}catch(e){}},
   ready(){return ytReadyP||Promise.reject(new Error("no"));}};
-async function ytFind(title,artist){const key=settings.ytKey;if(!key)return null;const q=[title,artist].filter(Boolean).join(" ");
+async function ytSearchRaw(q){const key=settings.ytKey;if(!key)return [];
   const r=await fetch("https://www.googleapis.com/youtube/v3/search?"+new URLSearchParams({part:"snippet",type:"video",maxResults:"8",videoCategoryId:"10",videoEmbeddable:"true",q,key}));
   const j=await r.json().catch(()=>({}));if(!r.ok)throw new Error((j.error&&j.error.message)||("HTTP "+r.status));
-  const items=(j.items||[]).filter(it=>it.id&&it.id.videoId).map(it=>({id:it.id.videoId,title:it.snippet.title,channel:it.snippet.channelTitle}));
+  return (j.items||[]).filter(it=>it.id&&it.id.videoId).map(it=>({id:it.id.videoId,title:decodeEntities(it.snippet.title),channel:it.snippet.channelTitle}));}
+function decodeEntities(t){const d=document.createElement("textarea");d.innerHTML=t;return d.value;}
+function ytTitleCands(title){const parts=title.split(/\s+[-_–—|:]\s+/);const main=parts.length>1?parts.slice(1).join(" "):title;
+  const ok=x=>x.length>=2&&!/^(mv|m\/v|official|audio|lyrics?|live|cover)$/i.test(x);
+  const runs=scriptRuns(main).filter(ok);return runs.length?runs:scriptRuns(title).filter(ok);}
+async function ytFind(title,artist){if(!settings.ytKey)return null;const items=await ytSearchRaw([title,artist].filter(Boolean).join(" "));
   if(!items.length)return null;const a=norm(artist),t=norm(title);
   const score=it=>{const ti=norm(it.title),ch=norm(it.channel);let s=0;if(a&&(ti.includes(a)||ch.includes(a)))s+=2;if(t&&ti.includes(t))s+=2;if(/official audio|audio|lyric|가사|歌詞|歌词/.test(ti))s+=1;if(/cover|翻唱|reaction|live|karaoke|instrumental|remix|伴奏|mv reaction|dance practice/.test(ti))s-=2;return s;};
   items.sort((x,y)=>score(y)-score(x));return items[0];}
-async function ytAuto(){if(!song||song.demo||!settings.ytKey)return;if(store.links&&store.links[song.key])return;if(orig.kind==="file")return;
+async function ytAuto(){if(!song||song.demo)return;if(store.links&&store.links[song.key])return;if(orig.kind==="file")return;
+  if(ytPending&&Date.now()-ytPending.at<300000){const v=ytPending;ytPending=null;setOrig(v.id,"YouTube："+v.title,"youtube");return;}
+  if(!settings.ytKey)return;
   try{const v=await ytFind(song.title,song.artist);if(!v)return toast("YouTube 没搜到这首歌，可手动粘贴链接");setOrig(v.id,"YouTube："+v.title,"youtube");}
   catch(e){toast("YouTube 搜索失败："+e.message);}}
-function autoSource(){if(store.spTok)spAuto();else if(settings.ytKey)ytAuto();}
+function autoSource(){if(ytPending)ytAuto();else if(store.spTok)spAuto();else if(settings.ytKey)ytAuto();}
 function ytUi(){const on=!!settings.ytKey;$("#ytStatus").textContent=on?"已填密钥：载入歌曲时会自动在 YouTube 搜这首歌并接入。":(location.protocol==="file:"?"当前是本地文件，YouTube 拒绝在本地文件里嵌入播放；把本页放到网上后再用。":"填一个免费密钥后，载入歌曲会自动在 YouTube 搜歌并接入；不填也可以直接粘贴 YouTube 链接。");$("#ytKeyClear").hidden=!on;if(!$("#ytKey").value)$("#ytKey").value=settings.ytKey||"";}
 $("#ytSetupBtn").onclick=()=>{const b=$("#ytSetup");b.hidden=!b.hidden;if(!b.hidden)ytUi();};
 $("#ytKeySave").onclick=()=>{const k=$("#ytKey").value.trim();if(!k)return toast("先填密钥");settings.ytKey=k;save();ytUi();toast("已保存 YouTube 密钥");if(song&&!song.demo)ytAuto();};
