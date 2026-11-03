@@ -116,7 +116,7 @@ details.paste .row{margin-top:8px}
 .toolbar .v{font-family:var(--mono);min-width:3ch;color:var(--ink)}
 
 .lyrics{position:relative;background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:10px 6px}
-.line{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:0 10px;padding:4px 8px;border-radius:10px;align-items:start}
+.line{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:0 10px;padding:4px 8px;border-radius:10px;align-items:start;scroll-margin-top:calc(12px + env(safe-area-inset-top,0px))}
 .line.cur{background:var(--sung-bg)}
 .line .g{display:flex;flex-direction:row;align-items:center;gap:0;padding-top:9px;order:2}
 .line .txt{order:1}
@@ -142,6 +142,12 @@ details.paste .row{margin-top:8px}
 .panel{position:sticky;top:calc(12px + env(safe-area-inset-top,0px));display:grid;gap:12px}
 .card{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:14px;display:grid;gap:10px}
 .card h3{margin:0;font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:600}
+.card h3.selhead{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.card h3.selhead .selmini{display:none;font-family:var(--display);font-size:18px;text-transform:none;letter-spacing:0;color:var(--ink);font-weight:500;overflow-wrap:anywhere}
+.card h3.selhead button{margin-left:auto;font-size:12px;padding:2px 8px;text-transform:none;letter-spacing:0}
+#selCard.collapsed>:not(h3){display:none}
+#selCard.collapsed h3.selhead>span:first-child{display:none}
+#selCard.collapsed h3.selhead .selmini{display:inline}
 .selword{font-family:var(--display);font-size:26px;line-height:1.3;font-weight:500;overflow-wrap:anywhere;min-height:34px}
 .selword .ph{font-family:var(--mono);font-size:13px;color:var(--muted);display:block;margin-top:2px}
 .btns{display:flex;flex-wrap:wrap;gap:6px}
@@ -309,7 +315,7 @@ details.paste .row{margin-top:8px}
   <aside class="panel">
     <div id="selPark" hidden>
     <div class="card" id="selCard" hidden>
-      <h3>当前选中 <span class="hint" style="text-transform:none;letter-spacing:0;font-weight:400">· 再点旁边的词可扩展成词组</span></h3>
+      <h3 class="selhead"><span>当前选中 <span class="hint" style="text-transform:none;letter-spacing:0;font-weight:400">· 再点旁边的词可扩展成词组</span></span><span class="selmini" id="selMini"></span><button class="ghost" id="selToggle" title="折叠 / 展开这个卡片" aria-expanded="true">▾ 折叠</button></h3>
       <div class="selword" id="selWord"></div>
       <div class="btns">
         <button id="btnRead">🔊 正常读</button>
@@ -455,15 +461,20 @@ function render(){
 const fmt=s=>{const m=Math.floor(s/60),x=Math.floor(s%60);return m+":"+String(x).padStart(2,"0");};
 function selText(){if(!sel)return"";const l=song.lines[sel.line];return l.text.slice(l.toks[sel.a].s,l.toks[sel.b].e);}
 function selWords(){if(!sel)return[];const r=[];for(let i=sel.a;i<=sel.b;i++)if(song.lines[sel.line].toks[i].word)r.push(i);return r;}
-function setSel(line,a,b){sel={line,a:Math.min(a,b),b:Math.max(a,b)};
+function setSel(line,a,b){const prevLine=sel?sel.line:null;sel={line,a:Math.min(a,b),b:Math.max(a,b)};
   // trim non-word ends
   const toks=song.lines[line].toks;while(sel.a<sel.b&&!toks[sel.a].word)sel.a++;while(sel.b>sel.a&&!toks[sel.b].word)sel.b--;
   document.querySelectorAll(".tok.on").forEach(e=>e.classList.remove("on"));
   for(let i=sel.a;i<=sel.b;i++){const e=tokEl(line,i);if(e)e.classList.add("on");}
   noteCursor={line,ti:selWords()[0]??sel.a};
+  setCardCollapsed(false); // 一旦点了词，就展开卡片
   renderSel();renderMelody();placePop();
+  // 选中卡片会从上一行搬到这一行，页面高度跟着变；渲染完直接把这一行滚到屏幕上方，卡片正好在它下面
+  const ldEl=document.querySelector('.line[data-li="'+line+'"]');
+  if(ldEl&&line!==prevLine)requestAnimationFrame(()=>ldEl.scrollIntoView({block:"start",behavior:"smooth"}));
 }
 function tokEl(li,ti){return document.querySelector(`.tok[data-li="${li}"][data-ti="${ti}"]`);}
+function setCardCollapsed(c){const card=$("#selCard"),b=$("#selToggle");card.classList.toggle("collapsed",c);b.textContent=c?"▸ 展开":"▾ 折叠";b.setAttribute("aria-expanded",String(!c));}
 function parkSelCard(){const card=$("#selCard"),park=$("#selPark");if(card&&card.parentElement!==park)park.appendChild(card);}
 function placePop(){
   const pop=$("#pop");pop.hidden=true;if(true)return;if(!sel){pop.hidden=true;return;}
@@ -479,7 +490,7 @@ function renderSel(){
   if(!sel){parkSelCard();card.hidden=true;$("#meaning").innerHTML='<p class="hint">释义会显示在这里。</p>';$("#decomp").innerHTML="";return;}
   const ld=document.querySelector('.line[data-li="'+sel.line+'"]');
   if(ld&&card.previousElementSibling!==ld){ld.after(card);}card.hidden=false;card.classList.add("inline");
-  w.textContent=selText();renderDecomp();renderCalib();
+  w.textContent=selText();$("#selMini").textContent=selText();renderDecomp();renderCalib();
 }
 // ---------- 原唱片段校准：每句的范围（句首偏移 / 句尾时间）和每个选区的微调，按歌保存
 function lineAdjOf(li){store.lineAdj=store.lineAdj||{};const m=store.lineAdj[song.key]=store.lineAdj[song.key]||{};return m[li]=m[li]||{s:0,e:null};}
@@ -1098,11 +1109,18 @@ lyr.addEventListener("pointerdown",e=>{
   if(sel&&sel.line===li){const toks=song.lines[li].toks;const gap=(x,y)=>{for(let i=Math.min(x,y)+1;i<Math.max(x,y);i++)if(toks[i].word)return false;return true;};
     if(ti<sel.a&&gap(ti,sel.a)){setSel(li,ti,sel.b);drag={line:li,a:ti,moved:true,ext:true};return;}
     if(ti>sel.b&&gap(sel.b,ti)){setSel(li,sel.a,ti);drag={line:li,a:ti,moved:true,ext:true};return;}}
-  drag={line:li,a:ti,moved:false};setSel(li,ti,ti);
+  drag={line:li,a:ti,moved:false,x:e.clientX,y:e.clientY};setSel(li,ti,ti);
 });
-lyr.addEventListener("pointerover",e=>{if(!drag||drag.ext)return;const t=e.target.closest(".tok.w");if(!t||+t.dataset.li!==drag.line)return;const ti=+t.dataset.ti;if(ti!==drag.a)drag.moved=true;setSel(drag.line,drag.a,ti);});
+// 手指拖选：触屏上 pointerover 不会跟着手指走，改用 pointermove + elementFromPoint 找手指下面的词
+function dragTo(x,y){if(!drag||drag.ext)return;const el=document.elementFromPoint(x,y);const t=el&&el.closest&&el.closest(".tok.w");if(!t||+t.dataset.li!==drag.line)return;const ti=+t.dataset.ti;if(ti===(drag.last??drag.a))return;drag.last=ti;if(ti!==drag.a)drag.moved=true;setSel(drag.line,drag.a,ti);}
+// 竖着划 = 滚动页面；横着划或已经拖到别的词 = 拖选
+function dragGesture(x,y){if(!drag||drag.ext)return false;if(drag.moved||drag.horiz)return true;const dx=Math.abs(x-drag.x),dy=Math.abs(y-drag.y);if(dx<8&&dy<8)return false;drag.horiz=dx>dy;if(!drag.horiz){drag=null;return false;}return true;}
+lyr.addEventListener("pointermove",e=>{if(!dragGesture(e.clientX,e.clientY))return;dragTo(e.clientX,e.clientY);});
+lyr.addEventListener("touchmove",e=>{const t=e.touches[0];if(t&&dragGesture(t.clientX,t.clientY)&&e.cancelable)e.preventDefault();},{passive:false});
+window.addEventListener("pointercancel",()=>{drag=null;});
 window.addEventListener("pointerup",()=>{if(!drag)return;const d=drag;drag=null;if(settings.autoSpeak&&sel){stop();stopFlag=false;speak(selText());}if(sel)explain(selText(),song.lines[sel.line].text);});
 lyr.addEventListener("keydown",e=>{const t=e.target.closest(".tok.w");if(!t)return;if(e.key==="Enter"||e.key===" "){e.preventDefault();const li=+t.dataset.li,ti=+t.dataset.ti;setSel(li,ti,ti);if(settings.autoSpeak)speak(selText());explain(selText(),song.lines[li].text);}});
+$("#selToggle").onclick=()=>setCardCollapsed(!$("#selCard").classList.contains("collapsed"));
 window.addEventListener("resize",placePop);
 document.addEventListener("click",e=>{if(e.target.closest("[data-audio]")){const a=new Audio(e.target.closest("[data-audio]").dataset.audio);a.play().catch(()=>toast("无法播放真人发音"));}});
 
